@@ -25,11 +25,7 @@ if ([ -z "$DEPLOY" ] && ([ "$CLUSTER_ID" ] || [ "$K_FACTOR" ] || [ "$SITES_PER_H
     fi
   else
     if [ -z "$CLUSTER_ID" ]; then CLUSTER_ID="2"; fi
-    if [ -z "$DR_SSL" ]; then
-      DR_SOURCE='<connection source="'$DR_PRODUCER_HOST'"/>';
-    else
-      DR_SOURCE='<connection source="'$DR_PRODUCER_HOST'" ssl="/opt/voltdb/localcert.txt"/>';
-    fi
+    DR_SOURCE='<connection source="'$DR_PRODUCER_HOST'"/>';
     if [ -z "$ACTIVE_ACTIVE" ]; then
 	DR_LISTEN="false"
     else
@@ -54,20 +50,15 @@ if ([ -z "$DEPLOY" ] && ([ "$CLUSTER_ID" ] || [ "$K_FACTOR" ] || [ "$SITES_PER_H
   else
     COMMAND_LOGGING=""
   fi
-  if [ "$DR_SSL" ]; then
-    SSL_SETTING='<ssl enabled="true" dr="true"><keystore path="/opt/voltdb/ssl-test/mydb.keystore" password="mypasswd"/><truststore path="/opt/voltdb/ssl-test/mydb.truststore" password="mypasswd"/></ssl>'
-  else
-    SSL_SETTING=""
-  fi
   if [ "$HOSTCOUNT" == "2" ]; then DISABLEPD='<partition-detection enabled="false"/>'; else DISABLEPD=''; fi
   if ([ -z "$CATALOG" ]); then SCHEMA="ddl"; else SCHEMA="catalog"; fi
-  echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING''$SSL_SETTING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/deployment.xml
+  echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr><paths><commandlogsnapshot path="/opt/voltdb/cmdsnap/" /></paths></deployment>' > $VOLTPATH/DOCKER/$PREFIX/deployment.xml
   if [ $DR_LISTEN == 'false' ]; then
     DR_LISTEN="true"
-    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING''$SSL_SETTING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_enable.xml
+    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_enable.xml
   else
     DR_LISTEN="false"
-    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING''$SSL_SETTING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_disable.xml
+    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_disable.xml
   fi
   DEPLOY="DOCKER/${PREFIX}/deployment.xml"
 else

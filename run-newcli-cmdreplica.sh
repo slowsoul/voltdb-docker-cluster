@@ -17,31 +17,15 @@ if ([ -z "$DEPLOY" ] && ([ "$CLUSTER_ID" ] || [ "$K_FACTOR" ] || [ "$SITES_PER_H
   if [ -z "$DR_LISTEN" ]; then DR_LISTEN="false"; fi
   if [ -z "$DR_PRODUCER_HOST" ]; then
     if [ -z "$CLUSTER_ID" ]; then CLUSTER_ID="1"; fi
-    DR_LISTEN="true"
-    if [ -z "$ACTIVE_ACTIVE" ]; then
-      DR_SOURCE=""
-    else
-      DR_SOURCE='<connection source="" enabled="false"/>'
-    fi
+    DR_SOURCE=""; DR_LISTEN="true"
   else
     if [ -z "$CLUSTER_ID" ]; then CLUSTER_ID="2"; fi
-    if [ -z "$DR_SSL" ]; then
-      DR_SOURCE='<connection source="'$DR_PRODUCER_HOST'"/>';
-    else
-      DR_SOURCE='<connection source="'$DR_PRODUCER_HOST'" ssl="/opt/voltdb/localcert.txt"/>';
-    fi
+    DR_SOURCE='<connection source="'$DR_PRODUCER_HOST'"/>';
     if [ -z "$ACTIVE_ACTIVE" ]; then
 	DR_LISTEN="false"
     else
 	DR_LISTEN="true"
     fi
-  fi
-  if [ "$REPLICA" == "true" ]; then
-        DR_ROLE="replica"
-  elif [ -z "$ACTIVE_ACTIVE" ]; then
-        DR_ROLE="master"
-  else
-        DR_ROLE="xdcr"
   fi
   if [ "$COMMANDLOG" ]; then
     if [ $COMMANDLOG == "sync" ]; then
@@ -54,20 +38,15 @@ if ([ -z "$DEPLOY" ] && ([ "$CLUSTER_ID" ] || [ "$K_FACTOR" ] || [ "$SITES_PER_H
   else
     COMMAND_LOGGING=""
   fi
-  if [ "$DR_SSL" ]; then
-    SSL_SETTING='<ssl enabled="true" dr="true"><keystore path="/opt/voltdb/ssl-test/mydb.keystore" password="mypasswd"/><truststore path="/opt/voltdb/ssl-test/mydb.truststore" password="mypasswd"/></ssl>'
-  else
-    SSL_SETTING=""
-  fi
   if [ "$HOSTCOUNT" == "2" ]; then DISABLEPD='<partition-detection enabled="false"/>'; else DISABLEPD=''; fi
   if ([ -z "$CATALOG" ]); then SCHEMA="ddl"; else SCHEMA="catalog"; fi
-  echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING''$SSL_SETTING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/deployment.xml
+  echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING'<dr id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/deployment.xml
   if [ $DR_LISTEN == 'false' ]; then
     DR_LISTEN="true"
-    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING''$SSL_SETTING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_enable.xml
+    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING'<dr id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_enable.xml
   else
     DR_LISTEN="false"
-    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING''$SSL_SETTING'<dr role="'$DR_ROLE'" id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_disable.xml
+    echo '<deployment><cluster hostcount="'$HOSTCOUNT'" sitesperhost="'$SITES_PER_HOST'" kfactor="'$K_FACTOR'" schema="'$SCHEMA'"/>'$DISABLEPD'<httpd enabled="true"><jsonapi enabled="true"/></httpd>'$COMMAND_LOGGING'<dr id="'$CLUSTER_ID'" listen="'$DR_LISTEN'">'$DR_SOURCE'</dr></deployment>' > $VOLTPATH/DOCKER/$PREFIX/producer_dr_disable.xml
   fi
   DEPLOY="DOCKER/${PREFIX}/deployment.xml"
 else
@@ -79,23 +58,13 @@ if ([ -z "$CATALOG" ]); then
 else
   CATALOG_OPTION="/opt/voltdb/${VOLTPATH}/DOCKER/${PREFIX}/${CATALOG}"
 fi
-
-if ([ -z "$ELASTIC_ADD" ]); then
-  stop $PREFIX
-  echo "Starting VoltDB servers"
-  NAME="${PREFIX}1" NETWORK="${NETWORK}" startone
-  for i in `seq 2 $HOSTCOUNT`; do
-    NAME="$PREFIX$i" LEADER_NAME="${PREFIX}1" NETWORK="${NETWORK}" startone
-  done
-  START_HOST=1
-else
-  echo "Elastic adding VoltDB servers"
-  START_HOST=$(($HOSTCOUNT + 1))
-  END_HOST=$(($HOSTCOUNT + $K_FACTOR + 1))
-  for i in `seq $START_HOST $END_HOST`; do
-    NAME="$PREFIX$i" LEADER_NAME="${PREFIX}1" NETWORK="${NETWORK}" startone
-  done
-fi
+stop $PREFIX
+if [ "$REPLICA" == "true" ]; then REPLICA="--replica"; fi
+echo "Starting VoltDB servers"
+NAME="${PREFIX}1" NETWORK="${NETWORK}" REPLICA="${REPLICA}" startone
+for i in `seq 2 $HOSTCOUNT`; do
+NAME="$PREFIX$i" LEADER_NAME="${PREFIX}1" NETWORK="${NETWORK}" REPLICA="${REPLICA}" startone
+done
 #Todo: figure out when the producer cluster is stable ( public listen ports are opened early by docker :( )
 #if [ -z "$DR_PRODUCER" ]; then
 #  for j in {0..60..5}
@@ -111,7 +80,7 @@ fi
 #fi
 echo
 echo "Ctrl-c to terminate log tailing"
-docker logs -f ${PREFIX}${START_HOST}
+docker logs -f ${PREFIX}1
 }
 function startone() {
 : ${NAME?"Need to set NAME"}
@@ -137,17 +106,11 @@ if [ $VOLT_ACTION == "create" ]; then
   fi
 fi
 
-if ([ -z "$ELASTIC_ADD" ]); then
-  START_COMMAND="voltdb start -H ${LEADER_NAME} -l /opt/voltdb/voltdb/license.xml -c ${HOSTCOUNT} ${VOLT_ARGS}"
-else
-  START_COMMAND="voltdb start --add --host=${LEADER_NAME}"
-fi
-
 # Start docker
 docker run -d -P -h $NAME --name $NAME --net=$NETWORK \
 -v $VOLTPATH:/opt/voltdb -v $VOLTPATH/DOCKER/$PREFIX/$NAME:/tmp/voltdbroot -v $VOLTPATH/DOCKER/SHARE:/tmp/share -v $VOLTPATH/DOCKER/SHARE/$NAME:/tmp/sharelocal voltdb-image-1604 \
 sh -c "groupadd $GROUP;useradd $USER -m -g $GROUP;chown -R $USER:$GROUP /opt /tmp /home/$USER;
-echo 'export PATH=\$PATH:/opt/voltdb/bin;cd /tmp/voltdbroot;voltdb init -C /opt/voltdb/$DEPLOY;$START_COMMAND' | exec su - $USER;while true; do sleep 300; done"
+echo 'export PATH=\$PATH:/opt/voltdb/bin;cd /tmp/voltdbroot;voltdb init -C /opt/voltdb/$DEPLOY;voltdb start $REPLICA -H $LEADER_NAME -l /opt/voltdb/voltdb/license.xml -c $HOSTCOUNT $VOLT_ARGS' | exec su - $USER;while true; do sleep 300; done"
 echo
 echo "IP of $NAME:" `docker inspect --format='{{.NetworkSettings.IPAddress}}' $(docker ps -a | grep -e "\s$NAME" | awk '{ print $1 }')`
 echo "Ports:" `docker port "$NAME" 21212` "(client)" `docker port "$NAME" 8080` "(HTTP)"
